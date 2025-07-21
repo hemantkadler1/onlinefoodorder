@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cart - FoodApp</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    body {
+      background: linear-gradient(to right, #fce3ec, #ffe3e3);
+      font-family: 'Inter', sans-serif;
+    }
+
+    .cart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 40px;
+      margin-bottom: 20px;
+    }
+
+    .cart-header h2 {
+      font-weight: 600;
+      color: #d32f2f;
+    }
+
+    .table th, .table td {
+      vertical-align: middle;
+    }
+
+    .btn {
+      border-radius: 40px;
+    }
+
+    .btn-danger {
+      background-color: #c62828;
+    }
+
+    .total-section {
+      margin-top: 30px;
+      padding: 20px;
+      border-radius: 15px;
+      background-color: #ffffff;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+    }
+
+    .total-section h4 {
+      font-weight: 600;
+    }
+
+    .empty-msg {
+      font-size: 18px;
+      color: #888;
+    }
+
+    .btn-action {
+      margin-right: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="cart-header">
+      <h2>🛒 Your Cart</h2>
+      <button class="btn btn-danger" onclick="logout()"><i class="bi bi-box-arrow-right"></i> Logout</button>
+    </div>
+
+    <div id="cartContainer" class="table-responsive"></div>
+
+    <div class="total-section">
+      <h4 id="totalPrice">Total: ₹0</h4>
+      <button class="btn btn-success mt-3" onclick="placeOrder()"><i class="bi bi-currency-rupee"></i> Place Order</button>
+      <button class="btn btn-outline-secondary mt-3 ms-2" onclick="window.location.href='menu.html'"><i class="bi bi-arrow-left"></i> Back to Menu</button>
+    </div>
+  </div>
+
+
+  <script>
+    document.addEventListener("DOMContentLoaded", loadCart);
+
+    function loadCart() {
+      const cart = JSON.parse(localStorage.getItem("cart")) || [];
+      const container = document.getElementById("cartContainer");
+
+      if (cart.length === 0) {
+        container.innerHTML = "<p class='empty-msg text-center'>🧺 Your cart is empty. Go add some delicious food!</p>";
+        document.getElementById("totalPrice").textContent = "Total: ₹0";
+        return;
+      }
+
+      let html = `
+        <table class="table table-bordered table-hover align-middle bg-white">
+          <thead class="table-danger">
+            <tr>
+              <th>Name</th>
+              <th>Price</th>
+              <th>Qty</th>
+              <th>Subtotal</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      let total = 0;
+
+      cart.forEach((item, index) => {
+        const quantity = item.quantity || 1;
+        const subtotal = item.price * quantity;
+        total += subtotal;
+
+        html += `
+          <tr>
+            <td>${item.name}</td>
+            <td>₹${item.price}</td>
+            <td>${quantity}</td>
+            <td>₹${subtotal.toFixed(2)}</td>
+            <td>
+              <button class="btn btn-sm btn-primary btn-action" onclick="changeQty(${index}, 1)">+</button>
+              <button class="btn btn-sm btn-warning btn-action" onclick="changeQty(${index}, -1)">-</button>
+              <button class="btn btn-sm btn-outline-danger btn-action" onclick="removeItem(${index})">Remove</button>
+            </td>
+          </tr>
+        `;
+      });
+
+      html += `</tbody></table>`;
+      container.innerHTML = html;
+      document.getElementById("totalPrice").textContent = "Total: ₹" + total.toFixed(2);
+    }
+
+    function changeQty(index, delta) {
+      const cart = JSON.parse(localStorage.getItem("cart")) || [];
+      if (!cart[index]) return;
+
+      cart[index].quantity = (cart[index].quantity || 1) + delta;
+      if (cart[index].quantity < 1) cart[index].quantity = 1;
+
+      localStorage.setItem("cart", JSON.stringify(cart));
+      loadCart();
+    }
+
+    function removeItem(index) {
+      const cart = JSON.parse(localStorage.getItem("cart")) || [];
+      cart.splice(index, 1);
+      localStorage.setItem("cart", JSON.stringify(cart));
+      loadCart();
+    }
+
+    async function placeOrder() {
+  const cart = JSON.parse(localStorage.getItem("cart")) || [];
+  if (cart.length === 0) {
+    alert("Your cart is empty.");
+    return;
+  }
+
+  const tokenData = localStorage.getItem("jwtToken");
+  if (!tokenData) {
+    alert("Login session expired.");
+    logout();
+    return;
+  }
+
+  const token = JSON.parse(tokenData).token || tokenData;
+
+  const payloadBase64 = token.split('.')[1];
+  const decodedPayload = JSON.parse(atob(payloadBase64));
+  const email = decodedPayload.sub; 
+
+  const itemIds = cart.map(item => item.id);
+  const quantities = cart.map(item => item.quantity);
+
+  try {
+    const response = await fetch("http://localhost:8080/api/orders/place", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + token
+      },
+      body: JSON.stringify({
+        customerEmail: email,
+        itemIds: itemIds,
+        quantities: quantities
+      })
+    });
+
+    if (!response.ok) throw new Error("Failed to place order.");
+
+    const data = await response.json();
+    localStorage.removeItem("cart");
+
+    alert("✅ Order placed successfully!");
+    window.location.href = "order-confirmation.html?id=" + data.orderId;
+
+  } catch (err) {
+    console.error("Order error:", err);
+    alert("❌ Failed to place order. Please try again.");
+  }
+}
+function goToPayment() {
+  if (orderId) {
+    window.location.href = `payment.html?id=${orderId}`;
+  } else {
+    alert("Order ID missing.");
+  }
+}
+
+
+    function logout() {
+      localStorage.removeItem("jwtToken");
+      localStorage.removeItem("cart");
+      window.location.href = "login.html";
+    }
+  </script>
+</body>
+</html>

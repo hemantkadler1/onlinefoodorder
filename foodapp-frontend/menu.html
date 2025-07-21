@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Menu - FoodApp</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    body {
+      background: linear-gradient(to right, #fff1f0, #ffe3e3);
+      font-family: 'Inter', sans-serif;
+    }
+    .menu-title {
+      font-weight: 600;
+      color: #d32f2f;
+      margin: 30px 0 10px;
+      text-align: center;
+      font-size: 32px;
+    }
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+    }
+    .top-bar .btn {
+      border-radius: 40px;
+      font-weight: 500;
+    }
+    .menu-card {
+      border: none;
+      border-radius: 20px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+      transition: transform 0.2s ease;
+      background-color: #fff;
+    }
+    .menu-card:hover {
+      transform: translateY(-5px);
+    }
+    .menu-card .card-title {
+      font-weight: 600;
+      font-size: 18px;
+    }
+    .price {
+      font-size: 16px;
+      font-weight: bold;
+      color: #388e3c;
+    }
+    .btn-add {
+      margin-top: auto;
+      border-radius: 40px;
+      font-weight: 500;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container mt-4">
+    <div class="top-bar">
+      <h2 class="menu-title">🍕 Food Menu</h2>
+      <div>
+        <button class="btn btn-outline-dark me-2" onclick="goToCart()">
+          <i class="bi bi-cart-check-fill"></i> Cart
+        </button>
+        <button class="btn btn-danger" onclick="logout()">
+          <i class="bi bi-box-arrow-right"></i> Logout
+        </button>
+      </div>
+    </div>
+
+    <div class="row" id="menuContainer">
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", fetchMenu);
+
+    async function fetchMenu() {
+      const tokenData = localStorage.getItem("jwtToken");
+
+      if (!tokenData) {
+        alert("Please log in first.");
+        window.location.href = "login.html";
+        return;
+      }
+
+      let token;
+      try {
+        token = JSON.parse(tokenData).token || tokenData;
+      } catch {
+        token = tokenData;
+      }
+
+      try {
+        const response = await fetch("http://localhost:8080/api/menu/all", {
+          headers: { Authorization: "Bearer " + token }
+        });
+
+        if (!response.ok) throw new Error("Unauthorized or Server error");
+
+        const items = await response.json();
+        const container = document.getElementById("menuContainer");
+
+        items.forEach(item => {
+          const card = document.createElement("div");
+          card.className = "col-md-4 mb-4";
+          card.innerHTML = `
+            <div class="card menu-card h-100">
+              <div class="card-body d-flex flex-column">
+                <h5 class="card-title">${item.name}</h5>
+                <p class="card-text">${item.description}</p>
+                <p class="price">₹${item.price.toFixed(2)}</p>
+                <button class="btn btn-success btn-add mt-auto" onclick='addToCart(${JSON.stringify(item)})'>
+                  <i class="bi bi-plus-circle"></i> Add to Cart
+                </button>
+              </div>
+            </div>
+          `;
+          container.appendChild(card);
+        });
+      } catch (err) {
+        console.error("Menu fetch failed:", err);
+        alert("Error loading menu. Please login again.");
+        logout();
+      }
+    }
+
+    function addToCart(item) {
+      const cart = JSON.parse(localStorage.getItem("cart")) || [];
+      const existing = cart.find(i => i.id === item.id);
+
+      if (existing) {
+        existing.quantity += 1;
+      } else {
+        item.quantity = 1;
+        cart.push(item);
+      }
+
+      localStorage.setItem("cart", JSON.stringify(cart));
+      alert(`${item.name} added to cart!`);
+    }
+
+    function goToCart() {
+      window.location.href = "cart.html";
+    }
+
+    function logout() {
+      localStorage.removeItem("jwtToken");
+      localStorage.removeItem("cart");
+      window.location.href = "login.html";
+    }
+  </script>
+</body>
+</html>
